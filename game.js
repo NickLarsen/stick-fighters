@@ -97,11 +97,13 @@ class Character extends Sprite {
     motion = new Point({ x: 0, y: 0 });
     grounded = false;
 
-    constructor({ position, height, width, color, controller, speed }) {
+    constructor({ position, height, width, color, controller, speed, maxHealth, startingHealth }) {
         super({ position, height, width });
         this.color = color;
         this.controller = controller;
         this.speed = speed;
+        this.maxHealth = maxHealth;
+        this.health = startingHealth;
     }
 
     render(ctx) {
@@ -140,6 +142,31 @@ class Character extends Sprite {
     }
 }
 
+class LifeBar extends Sprite {
+    constructor({ position, height, width, player, orientation, emptyColor, fullColor }) {
+        super({ position, height, width });
+        this.player = player;
+        this.orientation = orientation;
+        this.emptyColor = emptyColor;
+        this.fullColor = fullColor;
+    }
+
+    update(state) {
+        this.lifePercentage = this.player.health / this.player.maxHealth;
+    }
+
+    render(ctx) {
+        // render container
+        ctx.fillStyle = this.emptyColor;
+        ctx.fillRect(this.position.x, this.position.y, this.width, this.height);
+        // render life
+        ctx.fillStyle = this.fullColor;
+        const lifeWidth = Math.ceil(this.width * this.lifePercentage);
+        const offset = this.orientation === "right" ? 0 : (this.width - lifeWidth);
+        ctx.fillRect(this.position.x + offset, this.position.y, lifeWidth, this.height);
+    }
+}
+
 function makeGlobalGameState({ width, height }) {
     const char1Controller = new Controller({
         "KeyA": "left",
@@ -147,33 +174,59 @@ function makeGlobalGameState({ width, height }) {
         "KeyS": "duck",
         "Space": "jump",
     });
+    const char1 = new Character({ 
+        position: new Point({ x: 100, y: 100}), 
+        width: 80, 
+        height: 150, 
+        color: "green", 
+        controller: char1Controller,
+        speed: 8,
+        maxHealth: 1000,
+        startingHealth: 648,
+    });
+    const char1Life = new LifeBar({
+        position: new Point({ x: 50, y: 50 }),
+        height: 40,
+        width: 400,
+        player: char1,
+        orientation: "left",
+        emptyColor: "darkred",
+        fullColor: "darkgreen",
+    });
     const char2Controller = new Controller({
         "KeyJ": "left",
         "KeyL": "right",
         "KeyK": "duck",
         "KeyI": "jump",
     });
+    const char2 = new Character({ 
+        position: new Point({ x: 800, y: 100}), 
+        width: 80, 
+        height: 150, 
+        color: "pink", 
+        controller: char2Controller,
+        speed: 8,
+        maxHealth: 1000,
+        startingHealth: 893,
+    });
+    const char2Life = new LifeBar({
+        position: new Point({ x: 550, y: 50 }),
+        height: 40,
+        width: 400,
+        player: char2,
+        orientation: "right",
+        emptyColor: "darkred",
+        fullColor: "darkgreen",
+    });
     return {
         gravity: 0.75,
         items: [
             new Scene({ position: new Point({ x: 0, y: 0}), width, height, color: "black" }),
             new Platform({ position: new Point({ x: 10, y: height - 30 }), width: width - 20, height: 20, color: "cyan" }),
-            new Character({ 
-                position: new Point({ x: 100, y: 100}), 
-                width: 80, 
-                height: 150, 
-                color: "green", 
-                controller: char1Controller,
-                speed: 5,
-            }),
-            new Character({ 
-                position: new Point({ x: 800, y: 100}), 
-                width: 80, 
-                height: 150, 
-                color: "pink", 
-                controller: char2Controller,
-                speed: 5,
-            }),
+            char1,
+            char2,
+            char1Life,
+            char2Life,
         ]
     };
 }
