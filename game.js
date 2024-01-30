@@ -67,15 +67,25 @@ class Sprite {
 
 class Scene extends Sprite {
     color;
+    image;
 
-    constructor({ position, height, width, color }) {
+    constructor({ position, height, width, color, imageUrl }) {
         super({ position, height, width });
         this.color = color;
+
+        if (imageUrl !== undefined)
+        {
+            this.image = new Image(width, height);
+            this.image.src = imageUrl;
+        }
     }
 
     render(ctx) {
         ctx.fillStyle = this.color;
         ctx.fillRect(this.position.x, this.position.y, this.width, this.height);
+        if (this.image !== undefined) {
+            ctx.drawImage(this.image, this.position.x, this.position.y, this.width, this.height);
+        }
     }
 }
 
@@ -221,7 +231,7 @@ function makeGlobalGameState({ width, height }) {
     return {
         gravity: 0.75,
         items: [
-            new Scene({ position: new Point({ x: 0, y: 0}), width, height, color: "black" }),
+            new Scene({ position: new Point({ x: 0, y: 0}), width, height, color: "black", imageUrl: "bg-spooky.jpeg" }),
             new Platform({ position: new Point({ x: 10, y: height - 30 }), width: width - 20, height: 20, color: "cyan" }),
             char1,
             char2,
