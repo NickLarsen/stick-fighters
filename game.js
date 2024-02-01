@@ -25,6 +25,7 @@ class Controller {
         right: new Input(),
         jump: new Input(),
         duck: new Input(),
+        primaryAttack: new Input(),
     };
 
     constructor(mappings) {
@@ -103,22 +104,89 @@ class Platform extends Sprite {
     }
 }
 
+class Weapon extends Sprite {
+    isAttacking = false;
+    hasHitOnCurrentAttack = new Set();
+    attackStartTimeMs = 0;
+    character;
+
+    constructor({ height, width, color, damage, duration }) {
+        super({ position: new Point({ x: 0, y: 0}), height, width });
+        this.color = color;
+        this.damage = damage;
+        this.duration = duration;
+    }
+
+    _isAnotherCharacter(item) {
+        const isCharacter = item instanceof Character;
+        if (isCharacter === false) {
+            return false;
+        }
+        if (item === this.character) {
+            return false;
+        }
+        return intersects(this, item);
+    }
+    update(state) {
+        if (this.isAttacking === false) {
+            return;
+        }
+        const attackDuration = Date.now() - this.attackStartTimeMs;
+        if (attackDuration > this.duration) {
+            this.isAttacking = false;
+            return;
+        }
+        const orientationXOffset = this.character.orientation === "left" ? this.width : 0;
+        this.position.x = this.character.position.x + (this.character.width / 2) - orientationXOffset;
+        this.position.y = this.character.position.y + 10;
+        const overlaps = state.items.find(item => this._isAnotherCharacter(item));
+        if (overlaps !== undefined) {
+            if (this.hasHitOnCurrentAttack.has(overlaps) === false) {
+                overlaps.health -= Math.min(overlaps.health, this.damage);
+                this.hasHitOnCurrentAttack.add(overlaps);
+            }
+        }
+    }
+
+    render(ctx) {
+        if (this.isAttacking === false) {
+            return;
+        }
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.position.x, this.position.y, this.width, this.height);
+    }
+
+    startAttack() {
+        if (this.isAttacking === true) {
+            return;
+        }
+        this.isAttacking = true;
+        this.hasHitOnCurrentAttack.clear();
+        this.attackStartTimeMs = Date.now();
+    }
+}
+
 class Character extends Sprite {
     motion = new Point({ x: 0, y: 0 });
     grounded = false;
+    primaryWeapon;
+    prevPrimaryWeaponValue = false;
 
-    constructor({ position, height, width, color, controller, speed, maxHealth, startingHealth }) {
+    constructor({ position, height, width, color, controller, speed, maxHealth, startingHealth, orientation }) {
         super({ position, height, width });
         this.color = color;
         this.controller = controller;
         this.speed = speed;
         this.maxHealth = maxHealth;
         this.health = startingHealth;
+        this.orientation = orientation;
     }
 
     render(ctx) {
         ctx.fillStyle = this.color;
         ctx.fillRect(this.position.x, this.position.y, this.width, this.height);
+
+        this.primaryWeapon?.render(ctx);
     }
 
     _updateMotion(state) {
@@ -136,11 +204,30 @@ class Character extends Sprite {
         if (right.active) {
             this.position.x += this.speed;
         }
+        if (left.active && !right.active) {
+            this.orientation = "left";
+        } else if (!left.active && right.active) {
+            this.orientation = "right";
+        }
+    }
+
+    _updateWeapons(state) {
+        if (this.primaryWeapon === undefined) {
+            return;
+        }
+        const input = this.controller.inputs.primaryAttack;
+        if (input.active && this.prevPrimaryWeaponValue === false) {
+            this.primaryWeapon.startAttack();
+        }
+        this.primaryWeapon.update(state);
+        this.prevPrimaryWeaponValue = input.active;
     }
 
     update(state) {
         this._updateMotion(state);
         this.position.add(this.motion);
+
+        this._updateWeapons(state);
 
         this.grounded = false;
         const overlaps = state.items.find(item => item instanceof Platform && intersects(this, item));
@@ -149,6 +236,11 @@ class Character extends Sprite {
             this.position.y = overlaps.position.y - this.height;
             this.grounded = true;
         }
+    }
+
+    setPrimaryWeapon(weapon) {
+        this.primaryWeapon = weapon;
+        weapon.character = this;
     }
 }
 
@@ -183,6 +275,7 @@ function makeGlobalGameState({ width, height }) {
         "KeyD": "right",
         "KeyS": "duck",
         "Space": "jump",
+        "KeyE": "primaryAttack",
     });
     const char1 = new Character({ 
         position: new Point({ x: 100, y: 100}), 
@@ -192,8 +285,17 @@ function makeGlobalGameState({ width, height }) {
         controller: char1Controller,
         speed: 8,
         maxHealth: 1000,
-        startingHealth: 648,
+        startingHealth: 1000,
+        orientation: "right",
     });
+    const primaryAttack1 = new Weapon({
+        height: 30,
+        width: 120,
+        color: "orange",
+        damage: 173,
+        duration: 300,
+    });
+    char1.setPrimaryWeapon(primaryAttack1);
     const char1Life = new LifeBar({
         position: new Point({ x: 50, y: 50 }),
         height: 40,
@@ -208,6 +310,7 @@ function makeGlobalGameState({ width, height }) {
         "KeyL": "right",
         "KeyK": "duck",
         "KeyI": "jump",
+        "KeyU": "primaryAttack",
     });
     const char2 = new Character({ 
         position: new Point({ x: 800, y: 100}), 
@@ -217,8 +320,17 @@ function makeGlobalGameState({ width, height }) {
         controller: char2Controller,
         speed: 8,
         maxHealth: 1000,
-        startingHealth: 893,
+        startingHealth: 1000,
+        orientation: "left",
     });
+    const primaryAttack2 = new Weapon({
+        height: 30,
+        width: 120,
+        color: "orange",
+        damage: 173,
+        duration: 300,
+    });
+    char2.setPrimaryWeapon(primaryAttack2);
     const char2Life = new LifeBar({
         position: new Point({ x: 550, y: 50 }),
         height: 40,
@@ -231,7 +343,8 @@ function makeGlobalGameState({ width, height }) {
     return {
         gravity: 0.75,
         items: [
-            new Scene({ position: new Point({ x: 0, y: 0}), width, height, color: "black", imageUrl: "bg-spooky.jpeg" }),
+            //new Scene({ position: new Point({ x: 0, y: 0}), width, height, color: "black", imageUrl: "bg-spooky.jpeg" }),
+            new Scene({ position: new Point({ x: 0, y: 0}), width, height, color: "black" }),
             new Platform({ position: new Point({ x: 10, y: height - 30 }), width: width - 20, height: 20, color: "cyan" }),
             char1,
             char2,
