@@ -104,6 +104,14 @@ class Platform extends Sprite {
     }
 }
 
+class Wall extends Sprite {
+    constructor({ position, height, width }) {
+        super({ position, height, width });
+    }
+
+    // no render function because it's really just a placeholder
+}
+
 class Weapon extends Sprite {
     isAttacking = false;
     hasHitOnCurrentAttack = new Set();
@@ -189,6 +197,14 @@ class Character extends Sprite {
         this.primaryWeapon?.render(ctx);
     }
 
+    update(state) {
+        this._updateMotion(state);
+        this.position.add(this.motion);
+
+        this._updateWeapons(state);
+        this._adjustForEnvironment(state);
+    }
+
     _updateMotion(state) {
         this.motion.y += state.gravity;
         const jump = this.controller.inputs.jump;
@@ -223,18 +239,30 @@ class Character extends Sprite {
         this.prevPrimaryWeaponValue = input.active;
     }
 
-    update(state) {
-        this._updateMotion(state);
-        this.position.add(this.motion);
-
-        this._updateWeapons(state);
-
+    _adjustForEnvironment(state) {
         this.grounded = false;
-        const overlaps = state.items.find(item => item instanceof Platform && intersects(this, item));
-        if (overlaps !== undefined) {
-            this.motion.y = 0;
-            this.position.y = overlaps.position.y - this.height;
-            this.grounded = true;
+        for(const item of state.items) {
+            if (item instanceof Platform) {
+                if (intersects(this, item) === false) continue;
+                // if we intersect with a platform we move up to rest on top of it
+                this.motion.y = 0;
+                this.position.y = item.position.y - this.height;
+                this.grounded = true;
+            }
+            else if (item instanceof Wall) {
+                if (intersects(this, item) === false) continue;
+                // if we intersect with a wall we move to the edge of it
+                // on the side we are mostly on
+                const myCenterX = this.position.x + this.width / 2;
+                const itemCenterX = item.position.x + item.width / 2;
+                if (myCenterX >= itemCenterX) {
+                    // move to the right
+                    this.position.x = item.position.x + item.width;
+                } else {
+                    // move to the left
+                    this.position.x = item.position.x - this.width;
+                }
+            }
         }
     }
 
@@ -346,6 +374,8 @@ function makeGlobalGameState({ width, height }) {
             //new Scene({ position: new Point({ x: 0, y: 0}), width, height, color: "black", imageUrl: "bg-spooky.jpeg" }),
             new Scene({ position: new Point({ x: 0, y: 0}), width, height, color: "black" }),
             new Platform({ position: new Point({ x: 10, y: height - 30 }), width: width - 20, height: 20, color: "cyan" }),
+            new Wall({ position: new Point({ x: -10, y: -100 }), width: 20, height: height + 200 }),
+            new Wall({ position: new Point({ x: width - 10, y: -100 }), width: 20, height: height + 200 }),
             char1,
             char2,
             char1Life,
